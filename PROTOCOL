@@ -1,0 +1,376 @@
+
+               protocol for utalk, the udp talk
+
+
+
+1. A general-purpose sequenced packet low-level protocol, SRDP, for 
+   low-throughput connections, built over UDP.
+
+SRDP stands for Semi-Reliable Datagram Protocol.
+
+This defines a low-level protocol over which different types of data can 
+be sent by building higher level protocols. This protocol will ensure 
+the boundary-preserving transmission of packets, both orderless and 
+sequenced. It allows the reading of packets as they arrive, potentially 
+not in the order in which they were sent, and manages re-sending and 
+acknowledging sequenced packets. The goals are to ensure the 
+availability of data as soon as it arrives and the quick resending of 
+lost data, appropriate for low-throughput connections in which quick 
+response is important.
+
+Being built on UDP, the protocol doesn't provide any mechanism for an 
+initial handshaking where both sides would agree on port numbers. This 
+can be done with the help of some daemon, like the talk daemons.
+
+All packets belonging to the same connection are sent as UDP packets of 
+non-null size from one machine to the other, always from the same port, 
+always to the same port. Clients may be able to use the same port to 
+handle various connections with different machines or different ports on 
+the same remote machine.
+
+Packets are made of concatenated chunks (at least one of them). A chunk 
+is the logical data unit; each chunk has a length (total length, 
+counting the chunk header), is of a type (types are numbered), has a 
+sequence number for some types, and has some contents (which may be 
+empty). All chunks are prefaced by the protocol version and revision 
+numbers, so clients can deal with incompatibilities; the low-level 
+protocol layer will check that the version and revisions can talk to 
+each other. There is an extra version number, for use by the higher 
+level layer.
+
+All sequence numbers, type numbers, version numbers and lengths are 
+transmitted in network-standard byte order (big endian), and are not
+padded to any length other than the one they are defined to be.
+
+Sequenced chunks are those for which the protocol handler needs to keep 
+track of which ones have been received, sent, acknowledged, and expired. 
+If several types of sequenced chunks are used, they are all sequenced 
+together, starting with the sequence number 1. By convention, sequenced
+chunks will have even type numbers, and non-sequenced ones will have
+odd ones. 
+
+Non-sequenced chunks either contain control data to manage the 
+transmission of the sequenced chunks, or any other kind of data that 
+does not need to be protected against packet loss.
+
+
+The layout of a sequenced chunk is:
+
+offset 0    -  8 bits    -   protocol version number (currently 1)
+offset 1    -  8 bits    -   protocol revision number (currently 0)
+offset 2    -  8 bits    -   high-level protocol number (ignored)
+offset 3    -  8 bits    -   type of the chunk (even)
+offset 4    - 32 bits    -   length of the chunk (at least 12)
+offset 8    - 32 bits    -   sequence number of the chunk
+offset 12   - variable   -   data
+
+
+The layout of a non-sequenced chunk is:
+
+offset 0    -  8 bits    -   protocol version number (currently 1)
+offset 1    -  8 bits    -   protocol revision number (currently 0)
+offset 2    -  8 bits    -   high-level protocol number (ignored)
+offset 3    -  8 bits    -   type of the chunk (odd)
+offset 4    - 32 bits    -   length of the chunk (at least 8)
+offset 8    - variable   -   data
+
+
+Chunk types 0xe0 to 0xff are reserved for the low-level protocol; all
+other types are left for the protocols built on it.
+
+The high-level programs using this protocol will read and generate data 
+chunks of various types, sequenced or not, other than the control types 
+defined by the low-level protocol itself. They can also set a number of 
+general-purpose options like the values of the acknowledgement timeouts. 
+
+They write chunks in order and receive them potentially not in order; on 
+reception they also get the sequencing number, but the fact that these 
+may not be consecutive if more than one sequenced chunk type is used 
+makes it advisable to have the data contain enough information to deal 
+with each chunk of data separately, independently of the order.
+
+The higher level application will also be able to request a resynch (i.e 
+make the lowlevel library immediately send out a packet asking for any 
+missing data and telling what the last received sequence number is)
+
+The protocol does not ensure that all sent packets will be received. 
+Instead, if a sequenced chunk has never been received and other chunks 
+with later sequence numbers are being received, the protocol will retry 
+requesting the missing one a number of times, and will eventually give 
+up on old chunks if the number of missing chunks becomes too large. The 
+parameters to this are left as implementation decisions on the low-level 
+protocol management libraries.
+
+Clients should ignore chunk types they don't recognize.
+
+
+The following types of chunks is initially defined; they are all 
+non-sequenced, since they are used to control the sending of sequenced 
+data chunks:
+
+SRDP_PING    = 0xff  -    ping, requests a chunk back with the same data,
+			  and type SRDP_PINGREP
+
+SRDP_PINGREP = 0xfd  -    ping reply, returns the data
+
+SRDP_MISSLST = 0xfb  -    sends list of chunks that have never have been
+			  received, and that have a sequence number < to
+			  that of a received chunk; this list may
+			  (actually, has to, if it gets too long) be
+			  truncated, dropping the oldest missing chunks
+
+SRDP_CURRENT = 0xf9  -    sends the number of the last sequenced chunk
+			  received so far (the one with the greatests
+			  sequence number)
+
+SRDP_OLDEST  = 0xf7  -    sends the number of the oldest sent sequenced 
+			  chunk that is still available for resending
+
+SRDP_ALIVE   = 0xf5  -    tells the other side that the connection is not
+			  broken
+
+Clients should send chunks of type SRDP_MISSLST regularily but with a 
+minimum interval between two of them, as long as the list of missing 
+chunks is not empty. It is allowed to send packets of type SRDP_MISSLST 
+with an empty missing chunk list, but it is not required. Clients should 
+start sending chunks of type SRDP_CURRENT if they haven't received any 
+packet for some time, and send them regularily but with a minimum 
+interval between them.
+
+A chunk of type SRDP_CURRENT followed by a chunk of type SRDP_MISSLST 
+counts as an acknowledgement that all chunks with a sequence number 
+smaller than that specified on the SRDP_CURRENT chunk, and not 
+explicitly mentioned in SRDP_MISSLST will not be requested again.
+
+Chunks of type SRDP_OLDEST should be sent as an answer to SRDP_MISSLST
+that request non-available chunks.
+
+Chunks of type SRDP_ALIVE should be sent periodically whenever nothing 
+has been sent in a relatively long time. They contain nothing else than
+a chunk header.
+
+Failure to receive any kind of packets from the other end for a long 
+period indicates a failure of the transport medium, which should be 
+indicated to the high-level application, but should not cause the 
+connection to be automatically considered broken.
+
+
+Format of a SRDP_MISSLST chunk: (0xfb)
+
+offset 0    -  8 bits    -   protocol version
+offset 1    -  8 bits    -   protocol revision
+offset 2    -  8 bits    -   high-level protocol version (ignored)
+offset 3    -  8 bits    -   type of the chunk : 0xfb
+offset 4    - 32 bits    -   length of the chunk (at least 8)
+offset 8    - 32 bits    -   most recent missing chunk sequence number
+offset 12   -  8 bits    -   number of additional missing chunks before
+			     that one (0 to 255)
+offset 13   - 32 bits    -   second most recent missing chunk sequence
+			     number
+offset 17   -  8 bits    -   number of additional missing chunks before
+			     that one (0 to 255)
+            ...
+
+
+Format of a SRDP_CURRENT chunk: (0xf9)
+
+offset 0    -  8 bits    -   protocol version
+offset 1    -  8 bits    -   protocol revision
+offset 2    -  8 bits    -   high-level protocol version (ignored)
+offset 3    -  8 bits    -   type of the chunk : 0xf9
+offset 4    - 32 bits    -   length of the chunk (12)
+offset 8    - 32 bits    -   greatest sequence number received so far
+
+
+Format of a SRDP_OLDEST chunk: (0xf7)
+
+offset 0    -  8 bits    -   protocol version
+offset 1    -  8 bits    -   protocol revision
+offset 2    -  8 bits    -   high-level protocol version (ignored)
+offset 3    -  8 bits    -   type of the chunk : 0xf7
+offset 4    - 32 bits    -   length of the chunk (12)
+offset 8    - 32 bits    -   sequence number of the oldest sent chunk
+			     that is still available for resending
+
+
+In addition, the following types of semi-sequenced chunks are defined:
+
+SRDP_CLOSE    =    0xfe  -   request termination of the connection
+
+SRDP_DROP     =    0xfc  -   drop connection
+
+Those are actually not sent out with sequence numbers, but they are
+just repeated until acknowledged.
+
+When one end wants to gracefully shutdown the connection, it will send 
+SRDP_CLOSE chunks periodically for a few seconds, or until it gets a 
+SRDP_DROP back. In either case, it will consider the connection closed. 
+The SRDP_DROP chunks sent as an answer must be alone in their packets.
+
+When one end wants to drop the connection without waiting, it will
+send 3 SRDP_DROP chunks and consider it closed.
+
+When one end gets a SRDP_DROP chunk, it will consider the connection 
+closed.
+
+
+Format of a SRDP_CLOSE chunk: (request termination)
+
+offset 0    -  8 bits    -   protocol version
+offset 1    -  8 bits    -   protocol revision
+offset 2    -  8 bits    -   high-level protocol version (ignored)
+offset 3    -  8 bits    -   type of the chunk : 0xfe
+offset 4    - 32 bits    -   length of the chunk (at least 12)
+offset 8    - variable   -   error message encoded in the iso_8859_1
+			     map (may be empty, may be ignored)
+
+
+Format of a 0xfe chunk: (terminate connection with error message)
+
+offset 0    -  8 bits    -   protocol version
+offset 1    -  8 bits    -   protocol revision
+offset 2    -  8 bits    -   high-level protocol version (ignored)
+offset 3    -  8 bits    -   type of the chunk : 0xfe
+offset 4    - 32 bits    -   length of the chunk (at least 12)
+offset 8    - variable   -   error message encoded in the iso_8859_1
+			     character map (may be empty, may be 
+			     ignored)
+
+
+2. A high-level packet-oriented protocol for udp talk
+
+This protocol builds over the preceding one, and specifies the way
+a connection is established, as well as the way data is transmitted
+over the low-level protocol.
+
+The high-level protocol version must be set to 1 on all chunks;
+chunks with higher versions will be silently ignored, as will chunks
+with unknown types.
+
+To establish the connection, there are 3 ways:
+
+  . To manually specify on one end a local port, and on the other a
+    remote host and a remote port.
+
+  . To have the starting side call the other side's talk daemon,
+    with !(number)  (without the parentheses)  as the local username,
+    where (number) is the local port number.
+
+  . To have the starting side call the other side's talk daemon,
+    with !(name)  (without the parentheses)  as the local username,
+    where (name) is the usual login name of the caller, and leave
+    an invite on the caller's daemon with the local port number.
+
+Clients can either connect to the standard BSD-type talk daemons
+on port 518 or the old-fashioned Sun ones on port 517, or both.
+
+Upon starting, clients should request a resynch, in case the other
+client has been running and sending data already.
+
+
+This protocol defines one sequenced type of chunk, with number 
+UTALK_DATA = 0x02, containing data to be displayed:
+
+The layout of such a chunk will be:
+
+offset 0    -  8 bits    -   protocol version
+offset 1    -  8 bits    -   protocol revision
+offset 2    -  8 bits    -   high-level protocol number (currently 1)
+offset 3    -  8 bits    -   type of the chunk (2)
+offset 4    - 32 bits    -   length of the chunk (at least 10)
+offset 8    - 32 bits    -   sequence number of the chunk
+offset 12   - 16 bits    -   line number
+offset 14   - 16 bits    -   column number
+offset 16   - variable   -   data, encoded in the iso_8859_1 map,
+			     with a few characters and sequences to
+			     be interpreted specially
+
+
+The text in the talk is divided into logical lines of practically 
+unlimited length, made of a number of characters followed by a virtually 
+infinite number of virtual blanks, of which only those needed to reach 
+the end of the physical line will be displayed as spaces. Real spaces 
+(0x20) are considered solid characters, even at the end of lines.
+
+Clients are supposed to do word-wrap and/or line-wrap locally by 
+changing to the next line after some column number.
+
+Lines and columns are numbered from 1 to 65535, with (1, 1) being the 
+upper-left corner.
+
+Received chunks will move the cursor to the specified position, and then 
+apply each of the characters in the data section. Packets with no data
+but a cursor position explicitly request that the cursor be moved to
+that position.
+
+The display routines must keep track of the mapping between physical 
+lines and logical lines, keeping track of which logical lines are 
+physically visible, and of how many physical lines each takes, and take 
+it into account when initially positionning the cursor. When a logical 
+line has to be extended into more than one physical line, and it is not 
+the last physical line on the screen, the screen will have to be redrawn 
+or text scrolled down.
+
+It is up to the client whether empty physical lines because of shortened 
+logical lines should be reclaimed or left empty. It is up to the client 
+whether packets with cursor addresses outside the physical screen should 
+cause the display to scroll back or be ignored. This way clients able of 
+scrollback and/or full editing of the previously typed data will be able 
+to interoperate with those that are not, the latter displaying the 
+changes only if they are operating on the physical screen.
+
+In data, the following values are treated specially:
+
+0x00   -  special character of displayed length zero
+0xff   -  character introducing all utalk special sequences
+
+The defined special sequences are:
+
+0xff 0x00 : replace the character at the given position, as well as 
+anything after it on the same logical line, with virtual-blanks. reclaim 
+physical lines if necessary, and move the cursor that position.
+
+0xff 0x01 AA BB CC DD : set a new cursor position; AA,BB is the line
+number encoded as a 16-bit unsigned short in network order, and CC,DD 
+is the column in the same encoding.
+
+0xff 0x07 : beep the terminal (not storing anything, ignoring the line 
+and column numbers)
+
+A character that has been replaced by a 0x00 must never be replaced
+by another character again.
+
+The operations of deleting a letter, word or full line are to be 
+implemented in terms of 0xff 0x00 if possible, and in terms of replacing 
+characters with 0x00 if not.
+
+All characters other these two can be displayed arbitrarily by the 
+client, but have to be considered always to be of physical length one. 
+Clients can deal with special characters (from 0x01 to 0x1f, from 0x7f 
+to 0x9f) by either ignoring them (replacing them with spaces) or 
+displaying them with some convention (using bold, or reverse-video). All 
+characters with code >0x9f are considered to be iso-latin-1 encoded, and 
+can be displayed either in iso-latin-1 or by converting them to some 
+other local encoding, with or without accented characters.
+
+In addition to this, clients may locally recognize special keys to 
+redraw the screen, request a resynch, toggle any modes, move the cursor, 
+scroll back, etc.
+
+
+Another type of chunk, with number UTALK_TOPIC = 4 is also defined;
+it can be used by clients to send a string to be set as the "topic" of
+the conversation.  Clients may ignore this chunk.
+
+Its layout is:
+
+offset 0    -  8 bits    -   protocol version
+offset 1    -  8 bits    -   protocol revision
+offset 2    -  8 bits    -   high-level protocol number (currently 1)
+offset 3    -  8 bits    -   type of the chunk (2)
+offset 4    - 32 bits    -   length of the chunk (at least 10)
+offset 8    - 32 bits    -   sequence number of the chunk
+offset 12   - variable   -   text of the topic, encoded in the
+			     iso_8859_1 map.
+
+

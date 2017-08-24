@@ -1,0 +1,504 @@
+.TH UTALK 1 "Nov 24, 1996" "Roger Espel Llima"
+.SH NAME
+utalk \- a UDP-based full screen talk program
+.SH SYNOPSIS
+.PD 0
+.B utalk
+[options] user[@host][#tty]
+.PP
+.B utalk
+[options] !port@host
+.PP
+.B utalk
+[options] -s port
+.PP
+.B utalk
+[options] -c host port
+.PD
+.SH OPTIONS
+.TP
+.BR "-s, --server"
+Tells
+.B utalk
+not to use the talk daemons to announce itself, and instead wait for
+a connection on the given port number.
+.TP
+.BR "-c, --client"
+Tells
+.B utalk
+not to use the talk daemons to announce itself, and instead connect to
+the given port number on the given host.
+.TP
+.BR "-a, --announce-only"
+Makes
+.B utalk
+decide on a local port number, and send out an announce with the port
+number instead of your username.  Useful to start a 
+.B utalk
+session with a host that has a talk daemon when yours doesn't.
+.TP
+.BR "-7, --seven-bit"
+Makes 
+.B utalk
+convert all characters to 7-bit US-ASCII before displaying them; useful
+if you don't have an iso-8859-1 capable terminal.
+.TP
+.BR "-8, --eight-bit"
+Makes
+.B utalk
+show iso-8859-1 encoded characters on the screen, as they are received.
+.SH ARGUMENTS
+.TP
+.BR "user@host[#tty]"
+Specifies the user to ring.  The "user@host" part can be replaced
+with an alias name defined in your
+.B ~/.utalkrc.
+If you specify the tty, 
+.B utalk
+will ask the talk daemon to ring the user on that particular tty.
+The username can be prefixed by a '!', which 
+.B utalk
+will strip.
+.TP 
+.BR "!port@host"
+Specifies the port number to connect to, and the host.  Useful to answer
+to a
+.BR "utalk -a" .
+
+.SH DESCRIPTION
+.B utalk
+is a text-based chat program in the vein of
+.B talk 
+and 
+.BR YTalk ,
+which uses a better protocol built over UDP for communication.  Because
+it does not require that network packets arrive in sequence to be able
+to display them, 
+.B utalk
+can be used over unreliable links where a TCP/IP connection such as a
+telnet or a talk would be too slow to be usable.
+.LP
+Additionally,
+.B utalk
+supports full editing of previously typed text, scrollback, keyboard
+bindings, and aliases.
+.LP
+.B utalk
+is 
+.I incompatible
+with any other talk programs, as it uses a completely different protocol.
+Unfortunately, the text "respond with:  talk" is hard-coded in the
+talk daemon, and cannot be set by the client.
+.LP
+To avoid confusion, 
+.B utalk's
+talk requests send the username prefixed with a '!', which must be 
+understood as ``respond with 
+.BR utalk ''.
+
+.SH DISPLAY
+As in
+.B talk 
+and 
+.BR YTalk ,
+the 
+.B utalk
+screen is divided in a number of separate scrolling areas, one for
+yourself and one for each other connected client (currently limited to
+one).  
+.LP
+At any time, one of these windows is active.  Each scrolling area
+has a status line at the top, with the name of the client and the
+following flags:
+.TP
+.BR "[m]"
+This flag is always present on the top window: it's "\fBm\fPy" window.
+.TP
+.BR "[*]"
+This flag means that the window is active and in read-write mode.  This
+is the normal mode for your own window;  in this mode, you can type and
+edit, and when you move your cursor and/or scroll back all other
+connected clients see the cursor move too.
+.TP
+.BR "[R]"
+This flag means that the window is active and in read-only mode.  This is
+the only way another window than yours can be active (i.e you can't
+type text in someone else's window); setting your own window in read-only
+mode lets you scroll back through what you typed without all other clients
+seeing your do it.
+.TP
+.BR "[n]"
+Means that the window is not yet connected; the user hasn't responded
+yet.
+.TP
+.BR "[c]"
+Means that the window is connected.
+.TP
+.BR "[b]
+Means that the window is connected, but no data (even control data that
+.B utalk
+sends periodically) has been received for a while, so the connection might
+be broken or the client on the other side might have crashed.
+.B utalk
+will not interrupt a connection because of this, it's up to you to stop it
+after a while if it doesn't come back.
+
+.SH EDITING
+.BR utalk 's
+editing keys can be configured to emulate either 
+.B vi
+or
+.BR emacs ,
+in a limited way.  By default,
+.B utalk
+is in emacs mode.
+.LP
+.B utalk
+keeps a table of bindings for each of three modes: emacs mode,
+vi command mode, and vi insert mode.  These tables are initialized
+to suitable defaults, and you can add bindings with the
+.I bind
+command in your ~/.utalkrc file.
+.LP
+The following is a list of all key commands and their default bindings
+in emacs mode, vi command mode, and vi insert mode respectively.
+
+.TP
+.BR "self-insert (printable chars) (unbound) (printable chars)"
+The keypress gets inserted at the current cursor position, and the
+cursor moves forward one step.
+.TP
+.BR "insert-in-place (unbound) (unbound) (unbound)"
+The keypress gets inserted at the current cursor position, and the
+cursor does not move.
+.TP
+.B "quote-char (^Q) (unbound) (^V)"
+Insert the following key literally.
+.TP
+.BR "tab (^I) (unbound) (^I)"
+Moves the cursor to the next tab stop.
+.TP
+.BR "new-line (^M, ^J) (^M, ^J) (^M, ^J)"
+Moves the cursor to the first position on the next line, possibly
+creating the line.
+.TP
+.BR "delete (^D) (x) (unbound)"
+Deletes the character under the cursor.
+.TP
+.BR "delete-end-of-line (^K) (D, d$) (unbound)"
+Deletes from the cursor to the end of the line.
+.TP
+.BR "delete-beginning-of-line (unbound) (d0, d^) (unbound)"
+Deletes from the beginning of the line to the cursor.
+.TP
+.BR "delete-line (^U) (dd) (^U)"
+Deletes the current line.
+.TP
+.BR "delete-word (ESC d) (dw, dW) (unbound)"
+Deletes to the beginning of the next word.
+.TP
+.BR "delete-end-of-word (unbound) (de) (unbound)"
+Deletes to the end of the current word.
+.TP 
+.B "backspace (^H, DEL) (X) (^H, DEL)"
+Moves back the cursor one position, erasing the character in that position.
+.TP
+.B "backspace-word (^W) (unbound) (^W)"
+Backspaces over one word.
+.TP
+.B "backward (^B, ESC [D) (h, [D) (unbound)"
+Moves backward one position.
+.TP
+.B "forward (^F, ESC [C) (l, [C) (unbound)"
+Moves forward one position.
+.TP
+.B "backward-word (ESC b) (b, B) (unbound)"
+Moves backward one word.
+.TP
+.B "forward-word (ESC f) (w, W) (unbound)"
+Moves forward one word.
+.TP
+.B "end-of-word (unbound) (e) (unbound)"
+Moves to the end of the current word.
+.TP
+.B "beginning-of-line (^A) (0, ^) (unbound)"
+Moves to the beginning of the current line.
+.TP
+.B "end-of-line (^E) ($) (unbound)"
+Moves to the end of the current line.
+.TP
+.B "nop (unbound) (ESC) (unbound)"
+Does nothing.
+.TP
+.B "beep (unbound) (unbound) (unbound)"
+Beeps the terminal (does not send a beep across to the other clients).
+.TP
+.B "up (^P, ESC [A) (k, [A) (unbound)"
+Moves the cursor up one line.
+.TP
+.B "down (^N, ESC [B) (j, [B) (unbound)"
+Moves the cursor down one line.
+.TP
+.B "up-page (ESC v) (^B) (unbound)"
+Moves the cursor up one page if the screen is in read/write mode, and
+scrolls up by one page if it is in read-only mode.
+.TP
+.B "down-page (^V) (^F) (unbound)"
+Moves the cursor down one page if the screen is in read/write mode, and
+scrolls down by one page if it is in read-only mode.
+.TP
+.B "up-half-page (unbound) (^U) (unbound)"
+Moves the cursor up half a page if the screen is in read/write mode, and
+scrolls up by half a page if it is in read-only mode.
+.TP
+.B "down-half-page (unbound) (^D) (unbound)"
+Moves the cursor down half a page if the screen is in read/write mode, and
+scrolls down by half a page if it is in read-only mode.
+.TP
+.B "top-of-screen (unbound) (H) (unbound)"
+Moves the cursor to the first line of the current visible screen.
+.TP
+.B "middle-of-screen (unbound) (M) (unbound)"
+Moves the cursor to the middle of the screen.
+.TP
+.B "bottom-of-screen (unbound) (L) (unbound)"
+Moves the cursor to the last line of the current visible screen.
+.TP
+.B "top-or-up-page (unbound) (unbound) (unbound)"
+Moves the cursor to the top of the screen if it's not there, or scrolls
+up by one page if it is.
+.TP
+.B "bottom-or-down-page (unbound) (unbound) (unbound)"
+Moves the cursor to the bottom of the screen if it's not there, or
+scrolls down by one page if it is.
+.TP
+.B "vi-goto-line (unbound) (G) (unbound)"
+Moves the cursor to the line number entered as a prefix, if any; otherwise
+moves to the last line of the buffer.
+.TP
+.B "redisplay (^L) (^L) (^L)"
+Redraws the screen.
+.TP
+.B "resynch (^R) (^R) (^R)"
+Requests immediate transmission of all missing packets.
+.TP
+.B "next-window (^X b, ^X o, ^G) (g) (unbound)"
+Cycles the active window between your window in read/write mode, your
+window in read-only mode, and each of the other windows.
+.TP
+.B "set-topic (^T) (^T) (unbound)
+Prompts the user for a ``topic'', which will be displayed at the top of
+the screen for all users.
+.TP
+.B "vi-insert-mode (unbound) (i, R) (unbound)"
+Sets vi insert mode.
+.TP
+.B "vi-command-mode (unbound) (unbound) (unbound)"
+Sets vi command mode.
+.TP
+.B "emacs-mode (unbound) (unbound) (unbound)"
+Sets emacs mode.
+.TP
+.B "quit (^X c) (ZZ) (unbound)"
+Quits
+.BR utalk .
+.TP
+.B "vi-escape (unbound) (unbound) (ESC)"
+Sets vi command mode and moves the cursor one position to the left.
+.TP
+.B "vi-add (unbound) (a) (unbound)"
+Moves the cursor one position to the right and sets vi insert mode.
+.TP
+.B "vi-add-at-end-of-line (unbound) (A) (unbound)"
+Moves the cursor to the end of the current line and sets vi insert mode.
+.TP
+.B "vi-insert-at-beginning-of-line (unbound) (I) (unbound)"
+Moves the cursor to the beginning of the current line and sets vi insert
+mode.
+.TP
+.B "vi-open (unbound) (o) (unbound)"
+Moves the cursor to the beginning of the next line and sets vi insert mode.
+.TP
+.B "vi-open-above (unbound) (O) (unbound)"
+Moves the cursor to the beginning of the previous line and sets vi insert
+mode.
+.TP
+.B "vi-replace-char (unbound) (r) (unbound)"
+Replaces the char under the cursor with the following key.
+.TP
+.B "vi-find-char (unbound) (f) (unbound)"
+Moves the cursor to the next occurrence of the following key on the same line.
+.TP
+.B "vi-reverse-find-char (unbound) (F) (unbound)"
+Moves the cursor to the previous occurrence of the following key on the
+same line.
+.TP
+.B "vi-till-char (unbound) (t) (unbound)"
+Moves the cursor to one position before the next occurrence of the
+following key on the same line.
+.TP
+.B "vi-reverse-till-char (unbound) (T) (unbound)"
+Moves the cursor to one position after the previous occurrence of the
+following key on the same line.
+.TP
+.B "vi-repeat-find (unbound) (;) (unbound)"
+Repeats the previous find or till command.
+.TP
+.B "vi-reverse-repeat-find (unbound) (,) (unbound)"
+Repeats the previous find or till command, reversing the direction.
+.TP
+.B "vi-delete-find-char (unbound) (df) (unbound)"
+Deletes all characters between the current position and the next occurrence
+of the following key on the same line, both included.
+.TP
+.B "vi-delete-reverse-find-char (unbound) (dF) (unbound)"
+Deletes all characters between the current position and the previous
+occurrence of the following key on the same line, both included.
+.TP
+.B "vi-delete-till-char (unbound) (dt) (unbound)"
+Deletes all characters between the current position and the next occurrence
+of the following key on the same line, not including the latter.
+.TP
+.B "vi-delete-reverse-till-char (unbound) (dF) (unbound)"
+Deletes all characters between the current position and the previous
+occurrence of the following key on the same line, not including the
+latter.
+.TP
+.B "vi-flip-case (unbound) (~) (unbound)"
+Flip the case of the character under the cursor.
+
+.SH CONFIGURATION
+You can specify a number of settings for
+.B utalk
+in a configuration file called
+.I .utalkrc
+in your home directory.
+.LP
+Valid commands are:
+.PP
+.RS 4
+.PD 0
+emacs-mode
+.PP
+vi-mode
+.PP
+bind \fIkey\fR \fIfunction\fR
+.PP
+bind! \fIkey\fR \fIfunction\fR
+.PP
+alias \fIalias\fR \fIvalue\fR
+.PP
+set \fIsetting\fR on|off
+.RE
+.PD 1
+.PP
+Settings are:
+.TP
+.B "beep"
+Makes utalk let beeps through or silence them.
+.TP
+.B "word-wrap, wordwrap, ww"
+Turns word-wrap on or off (only at the end of the last line in the buffer).
+.TP
+.B "eight-bit, eightbit, eb"
+Lets eight-bit iso-latin-1 characters through or maps them to US-ASCII.
+.TP
+.B "meta-esc, metaesc, me"
+Maps keys with the high bit set to ESC followed by key, or lets them through
+(only affects emacs-mode).
+.PD
+.PP
+"toggle" and "se" are synonyms for "set".
+.PD 0
+.PP
+"bindkey" and "bindkey!" are synonyms for "bind" and "bind!", respectively.
+.PD 1
+.LP
+In settings, "on" and "off" arguments are optional, "on" is assumed by
+default, unless the setting's name is prefixed with "no".
+.PP
+Bindings apply to the current mode; to change bindings in vi mode, put a
+"vi-mode" first, then your "bind"s and "bind!"s.  In emacs mode, "bind"
+and "bind!" are synonymous.
+.LP
+In a binding, the \fIkey\fR must be a character or sequence of
+characters, not separated with any spaces.  The following sequences
+are recognized to specify characters:
+.PP
+.RS 4
+.PD 0
+^\fIchar\fR, C-\fIchar\fR     --   Control-\fIchar\fR
+.LP
+M-\fIchar\fR            --   Meta-\fIchar\fR
+.LP
+\\e                --   ESC
+.LP
+\\t                --   Tab
+.LP
+\\r                --   Carriage return (^M)
+.LP
+\\n                --   Newline (^J)
+.LP
+\\x\fIhex code\fR        --   Ascii code given in hex
+.LP
+\\\fIchar\fR             --   That char, taken literally
+.RE
+.PD 1
+.PP
+Note that you shouldn't bind functions to M-key combinations in emacs
+mode; use ESC key combinations instead, and turn meta-esc on if you want
+to use your Meta key like in emacs.
+.PD 2
+.LP
+.PD
+You can make aliases for addresses of people to ring, in either of 3 forms:
+.TP 12
+.B "alias \fIaliasname\fR@ \fIusername\fR@"
+Replaces \fIaliasname\fR@\fIhost\fR with \fIusername\fR@\fIhost\fR for
+every host. The '@' at the end of \fIusername@\fR is not required.
+.TP 12
+.B "alias @\fIaliashost\fR @\fIrealhost\fR"
+Replaces \fIuser\fR@\fIaliashost\fR with \fIuser\fR@\fIrealhost\fR for
+every user. The '@' at the beginning of @\fIrealhost\fR is not required.
+.TP 12
+.B "alias \fIaliasname\fR \fIuser\fR@\fIhost\fR"
+Replaces \fIaliasname\fR with \fIuser\fR@\fIhost\fR.
+
+.SH COPYING
+.B utalk
+is free software. You can redistribute it and/or modify it under the GNU
+General Public License as published by the Free Software Foundation.  See
+the file LICENSE for details.
+
+.SH SEE ALSO
+.BR talk (1),
+.BR ytalk (1),
+.BR mesg (1)
+
+.SH FILES
+~/.utalkrc           configuration file
+
+.SH BUGS
+This is a beta version of 
+.BR utalk ,
+so some bugs are to be expected...  please report any bugs to the
+author.
+
+There is no way to insert (rather than overwrite) text.  This will be
+hard to fix, as it is a requirement of 
+.B utalk
+and the
+.B SRDP
+protocol that the whole protocol must be commutative.
+.LP
+There is no way (as of yet...) to do n-way 
+.B utalk
+sessions.
+.LP
+The vi and emacs emulations are relatively primitive.
+
+.SH AUTHOR
+.B utalk
+was written by Roger Espel Llima <roger.espel.llima@pobox.com>. 
+
+

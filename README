@@ -1,0 +1,26 @@
+utalk - a UDP-based full-screen talk protocol and client
+--------------------------------------------------------
+
+This is a beta version of utalk, and the documentation is not yet
+complete.
+
+Please see the file PROTOCOL for the utalk protocol specifications, and
+the manpage (utalk.1) for general documentation.
+
+To compile utalk, edit the Makefile to suit your system, and run
+``make''.  utalk requires an ANSI C compiler such as gcc, and should be
+fairly portable on most modern Unix-like systems.  
+
+utalk has been tested on a 64-bit system (Linux/axp), and should work
+without modification on any system where ints are 32 bit, shorts 16 bit
+and chars 8 bit.  If this is not the case for your system, edit the
+definitions for srdp_u32, srdp_u16 and srdp_u8 in srdpdata.h.
+
+If you have trouble compiling or getting utalk to run on some platform,
+please tell me about it.
+
+Once compiled, the utalk binary is ready to run; you can install it
+on the system by typing ``make install''.
+
+--
+Roger Espel Llima  <roger.espel.llima@pobox.com>
