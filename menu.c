@@ -591,7 +591,7 @@ void menu_keyboard(unsigned char c) {
 	    break;
 	  
 	  default:
-	    if (c >= ' ' && (c < 0x7f || (eight_bit_clean && c > 0xa0))) {
+	    if (c >= ' ' && (c < 0x7f || (eight_bit_clean && c > 0x7f))) {
 	      if (m->len < 255) {
 		if (m->len - m->showfromcol >= m->wcols - 4) {
 		  m->entry[m->len++] = c;

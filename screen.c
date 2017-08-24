@@ -194,11 +194,14 @@ static void printchar(unsigned char c) {
     m_putscreen((char *)&c, 1, ATTR_INVERSE);
     normal();
   } else if (c >= 0x7f && c<0xa0) {
-    c += '@';
-    c &= 0x7f;
-    setinv();
-    m_putscreen((char *)&c, 1, ATTR_INVERSE);
-    normal();
+    if (!eight_bit_clean || c == 0x7f) {
+      c += '@';
+      c &= 0x7f;
+      setinv();
+      m_putscreen((char *)&c, 1, ATTR_INVERSE);
+      normal();
+    } else
+      m_putscreen((char *)&c, 1, 0);
   } else if (c >= 0xa0) {
     if (!eight_bit_clean)
       c = ascii_trans[c-0xa0];

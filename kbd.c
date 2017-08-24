@@ -293,7 +293,7 @@ void kbd_defaults(void) {
   for (i=' '; i<='~'; i++)
     modes[EMACS].funcs[i] = modes[VI_INS].funcs[i] = f_self_insert;
 
-  for (i=0xa1; i<0xff; i++)
+  for (i=0x80; i<0xff; i++)
     modes[EMACS].funcs[i] = modes[VI_INS].funcs[i] = f_self_insert;
 
   current_mode = &modes[EMACS];
